@@ -88,5 +88,3 @@ This is a pretty long-term fix. X doesn't seem to invalidate cookies for the wee
 I made a DropSite channel with tweets sourced from their X account... go check it out. They've been pretty on-time and are a reliable source for the Iran-Israel conflict.
 
 [https://whatsapp.com/channel/0029VbAfFCB3WHTaPAAC7n1V](https://whatsapp.com/channel/0029VbAfFCB3WHTaPAAC7n1V)
-
-test
