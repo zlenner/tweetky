@@ -1,0 +1,37 @@
+version: "3.9"
+
+services:
+  tweeto-whatsapp-channel:
+    build:
+      context: .
+    container_name: tweeto-whatsapp-channel
+    depends_on:
+      - whatsapp
+    environment:
+      - WHATSAPP_API_URL=http://whatsapp:3000
+      - WHATSAPP_BASIC_AUTH=admin:admin
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - tweeto-whatsapp-channel-data:/app/data
+    working_dir: /app
+    command: python main.py
+
+  whatsapp:
+    image: aldinokemal2104/go-whatsapp-web-multidevice
+    container_name: whatsapp
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - whatsapp-data:/app/storages
+    command:
+      - rest
+      - --basic-auth=admin:admin
+      - --port=3000
+      - --debug=true
+      - --os=Chrome
+      - --account-validation=false
+
+volumes:
+  whatsapp-data:
+  tweeto-whatsapp-channel-data:

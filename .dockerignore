@@ -1,0 +1,22 @@
+# Ignore development-related files and folders
+env/
+.dockerignore
+.docker/
+docker-compose*
+Dockerfile*
+
+# ENV files
+.env.example
+
+# Version control
+.git
+.gitignore
+
+# OS / editor files
+*.swp
+*.bak
+*.log
+__pycache__/
+*.pyc
+.vscode/
+.idea/
