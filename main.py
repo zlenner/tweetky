@@ -50,12 +50,12 @@ WARP_PROXY_URL = os.getenv("WARP_PROXY_URL")
 
 assert WARP_PROXY_URL, "WARP_PROXY_URL env variable must be defined."
 
-response = requests.get('http://ifconfig.me/')
+response = requests.get('https://ifconfig.me/')
 print(f"Your IP address: {response.text.strip()}")
 
 while True:
     try:
-        response = requests.get('http://ifconfig.me/', proxies={'http': WARP_PROXY_URL, 'https': WARP_PROXY_URL})
+        response = requests.get('https://ifconfig.me/', proxies={'http': WARP_PROXY_URL, 'https': WARP_PROXY_URL})
         print(f"Your IP through proxy: {response.text.strip()}")
         break
     except requests.exceptions.ConnectionError as e:
