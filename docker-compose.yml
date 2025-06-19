@@ -1,10 +1,10 @@
 version: "3.9"
 
 services:
-  tweeto-whatsapp-channel:
+  tweetky:
     build:
       context: .
-    container_name: tweeto-whatsapp-channel
+    container_name: tweetky
     depends_on:
       - whatsapp
       - warproxy
@@ -14,7 +14,7 @@ services:
       - WARP_PROXY_URL=socks5://admin:admin@warproxy:8008
       - PYTHONUNBUFFERED=1
     volumes:
-      - tweeto-whatsapp-channel-data:/app/data
+      - tweetky-data:/app/data
     working_dir: /app
     command: python main.py
 
@@ -47,5 +47,5 @@ services:
 
 volumes:
   whatsapp-data:
-  tweeto-whatsapp-channel-data:
+  tweetky-data:
   warp-config:

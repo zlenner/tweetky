@@ -63,7 +63,7 @@ The channel ID can be found from the View Contacts API, also accessable from our
 
 1. Create a .env file and fill out the required ENV variables. At least the ones you can.
 
-2. If you want to run this locally, clone this repo `git clone https://github.com/zlenner/tweeto-whatsapp-channel`, turn on docker, and enter the command `docker-compose up --build` in the same directory as the repo.
+2. If you want to run this locally, clone this repo `git clone https://github.com/zlenner/tweetky`, turn on docker, and enter the command `docker-compose up --build` in the same directory as the repo.
 
 3. Should be up and running! First navigate to the local URL provided from the terminal with the message `Login to WhatsApp @ ...`.
 
