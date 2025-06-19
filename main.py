@@ -4,6 +4,7 @@ import datetime
 from io import BytesIO
 import json
 import os
+import re
 import time
 import traceback
 from twikit import Client, Tweet
@@ -14,6 +15,8 @@ import os
 import requests
 import twikit
 import twikit.media
+import builtins
+from contextlib import contextmanager
 
 load_dotenv()
 
@@ -367,6 +370,64 @@ client = Client('en-US',
     proxy=WARP_PROXY_URL
 )
 
+@contextmanager
+def intercept_twitter_flows():
+    _print = builtins.print
+    _input = builtins.input
+
+    time_of_call = datetime.datetime.now()
+    
+    printed_text = ""
+    
+    def intercepted_print(*args, **kwargs):
+        nonlocal printed_text
+        printed_text += " ".join(str(arg) for arg in args) + "\n"
+        _print(*args, **kwargs)
+    
+    def intercepted_input(prompt=""):
+        nonlocal printed_text
+        printed_text += prompt
+
+        if "Verify your identity by entering the email address" in printed_text:
+            print(printed_text)
+            
+            sleep_time = round(generate_time_interval(2, 6), 2)
+            print(f"Naturally sleeping for {sleep_time}...")
+            time.sleep(sleep_time)
+            
+            return X_EMAIL
+        elif "code sent":
+            matching_logs = []
+            while len(matching_logs) == 0:
+                response = requests.get("https://api.improvmx.com/v3/domains/obaid.xyz/logs", headers={
+                    "Authorization": "Basic api:sk_6530c960e0a94dd9b3b3a47a26535781"
+                })
+                logs = response.json()
+                matching_logs = [log for log in logs['logs'] if log['created'] > time_of_call and 'Your X confirmation code is' in log['subject']]
+                print("No verification code email found...")
+                time.sleep(2)
+            
+            match = re.search(r'(?<=Your X confirmation code is )[a-z0-9]+', matching_logs[0]["subject"])
+            verification_code = match.group() if match else None
+
+            sleep_time = round(generate_time_interval(2, 6), 2)
+            print(f"Naturally sleeping for {sleep_time}...")
+            time.sleep(sleep_time)
+
+            return verification_code
+        else:
+            print("Unknown input requested...")
+            _input(prompt)
+    
+    builtins.print = _print
+    builtins.input = _input
+    
+    try:
+        yield
+    finally:
+        builtins.print = intercepted_print
+        builtins.input = intercepted_input
+
 async def login_client():
     print("Logging in to X...", dict(
         X_USERNAME=X_USERNAME,
@@ -374,11 +435,12 @@ async def login_client():
         X_PASSWORD=X_PASSWORD,
         X_USER_AGENT=os.getenv("X_USER_AGENT")
     ))
-    await client.login(
-        auth_info_1=X_USERNAME ,
-        auth_info_2=X_EMAIL,
-        password=X_PASSWORD,
-    )
+    with intercept_twitter_flows():
+        await client.login(
+            auth_info_1=X_USERNAME ,
+            auth_info_2=X_EMAIL,
+            password=X_PASSWORD,
+        )
 
     client.save_cookies(DATA_DIR + 'cookies.json')
 
@@ -411,6 +473,7 @@ async def attempt_cached_login():
                 })
                 raise e
 
+
 async def main():
     x_auth_errors._overwrite_and_save({})
     
@@ -427,6 +490,10 @@ async def main():
                 print("X_FORCE_PUSH_AUTH triggered, removing auth error and continuing application...")
                 x_auth_errors.data["X_FORCE_PUSH_AUTH"] = X_FORCE_PUSH_AUTH
                 x_auth_errors.save_to_file()
+        else:
+            print("X Credentials changed, removing auth error and continuing application...")
+            x_auth_errors.data = {}
+            x_auth_errors.save_to_file()
     
     await attempt_cached_login()
 
@@ -437,9 +504,11 @@ async def main():
             all_users_new_tweets = []
             for user_handle in user_handles:
                 try:
-                    user = await client.get_user_by_screen_name(user_handle)
+                    with intercept_twitter_flows():
+                        user = await client.get_user_by_screen_name(user_handle)
 
-                    tweets = list(reversed(await user.get_tweets("Tweets", count=40)))
+                    with intercept_twitter_flows():
+                        tweets = list(reversed(await user.get_tweets("Tweets", count=40)))
 
                     print("Fetched tweets for user:", user.screen_name, "Total:", len(tweets))
 
