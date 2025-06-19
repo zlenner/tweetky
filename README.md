@@ -1,4 +1,4 @@
-# tweeto-whatsapp-channel
+# tweetky
 
 Accounts on Twitter often post international news and other updates faster + more accurate versions of them. I wanted to bring that level of reliability and information to WhatsApp because:
 
