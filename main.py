@@ -12,17 +12,17 @@ from dotenv import load_dotenv
 import numpy as np
 import os
 import requests
+import twikit
+import twikit.media
 
 load_dotenv()
-
-print("ENV variables:")
-print(list(os.environ.items()))
 
 CHANNEL_ID=os.getenv("CHANNEL_ID", "")
 X_USERNAME=os.getenv("X_USERNAME", "")
 X_EMAIL=os.getenv("X_EMAIL", "")
 X_PASSWORD=os.getenv("X_PASSWORD", "")
 X_COOKIES=os.getenv("X_COOKIES", None)
+X_FORCE_PUSH_AUTH=os.getenv("X_FORCE_PUSH_AUTH", None)
 WHATSAPP_BASIC_AUTH=os.getenv("WHATSAPP_BASIC_AUTH", "")
 
 WHATSAPP_HEADERS = {
@@ -63,51 +63,13 @@ while True:
         else:
             raise e
 
-client = Client('en-US',
-    user_agent=os.getenv("X_USER_AGENT", "Mozilla/5.0 (Linux; Android 16; SM-N960U) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.7151.90 Mobile Safari/537.36"),
-    proxy=WARP_PROXY_URL
-)
-
-async def login_client():
-    print("Logging in to X...", dict(
-        X_USERNAME=X_USERNAME,
-        X_EMAIL=X_EMAIL,
-        X_PASSWORD=X_PASSWORD,
-        X_USER_AGENT=os.getenv("X_USER_AGENT")
-    ))
-    await client.login(
-        auth_info_1=X_USERNAME ,
-        auth_info_2=X_EMAIL,
-        password=X_PASSWORD,
-    )
-
-    client.save_cookies(DATA_DIR + 'cookies.json')
-
-async def attempt_cached_login():
-    if X_COOKIES is not None:
-        cookies = json.loads(base64.b64decode(os.getenv("X_COOKIES", "{}")).decode())
-        client.set_cookies(cookies)
-        print("Successfully loaded cookies from environment variable.")
-    else:
-        try:
-            with open(DATA_DIR + 'cookies.json', 'r') as f:
-                cookies = json.load(f)
-                client.set_cookies(cookies)
-                print("Successfully loaded cookies.")
-                print("X_COOKIES=" + base64.b64encode(json.dumps(cookies).encode()).decode())
-        except FileNotFoundError:
-            await login_client()
-            print("Successfully logged in and saved cookies.")
-
-asyncio.run(attempt_cached_login())
-
-
 print("Verifying WhatsApp is logged in...", '/app/login')
 while True:
     try:
         response = requests.get(f'{WHATSAPP_URL}/app/login', headers=WHATSAPP_HEADERS)
         if response.status_code == 401:
             raise Exception(f"WhatsApp API returned status code {response.status_code}: {response.text}")
+        
         data = response.json()
         
         if data.get("code") == "SUCCESS" and data.get("results", {}).get("qr_link"):
@@ -132,32 +94,45 @@ if (X_USERNAME == "" or X_PASSWORD == "" or X_EMAIL == "") and not X_COOKIES:
 else:
     print("Credentials provided, proceeding with the script.")
 
-class PersistentSet:
-    def __init__(self, filename = "persistence.json"):
+class PersistentJsonData:
+    def __init__(self, filename, default_data):
         self.filename = filename
+
         try:
             with open(DATA_DIR + self.filename, 'r') as f:
-                self.set = json.load(f)
+                self.data = json.load(f)
 
         except FileNotFoundError:
-            self.set = []
-        
-        print(f"Initialized PersistentSet with {len(self.set)} items.")
-
-    async def add(self, tweet: Tweet):
-        self.set.append(tweet.id)
+            self.data = default_data
+    
+    def _overwrite_and_save(self, new_data):
+        self.data = new_data
         self.save_to_file()
-
-    async def remove(self, tweet: Tweet):
-        self.set.remove(tweet.id)
-        self.save_to_file()
-
-    def exists(self, tweet: Tweet):
-        return tweet.id in self.set
 
     def save_to_file(self):
         with open(DATA_DIR + self.filename, 'w+') as f:
-            json.dump(self.set, f)
+            json.dump(self.data, f)
+
+class PersistentSet(PersistentJsonData):
+    def __init__(self, filename):
+        super().__init__(filename, [])
+        
+        print(f"Initialized PersistentSet with {len(self.data)} items.")
+
+    async def add(self, tweet: Tweet):
+        self.data.append(tweet.id)
+        self.save_to_file()
+
+    async def remove(self, tweet: Tweet):
+        self.data.remove(tweet.id)
+        self.save_to_file()
+
+    def exists(self, tweet: Tweet):
+        return tweet.id in self.data
+
+    def save_to_file(self):
+        with open(DATA_DIR + self.filename, 'w+') as f:
+            json.dump(self.data, f)
 
 class SentTweets(PersistentSet):
     def __init__(self, filename="sent_tweets.json"):
@@ -168,7 +143,7 @@ class SentTweets(PersistentSet):
         try:
             await self.__send_request_to_post_video(tweet)
 
-            self.set.append(tweet.id)
+            self.data.append(tweet.id)
             self.save_to_file()
             
         except Exception as e:
@@ -267,6 +242,7 @@ class SentTweets(PersistentSet):
                         await send_media_video(media)
 
 sent_tweets = SentTweets()
+x_auth_errors = PersistentJsonData("x_auth_status.json", {})
 
 import numpy as np
 
@@ -306,14 +282,14 @@ def generate_time_interval(low: float, high: float):
     # Final clamp to ensure within range
     return np.clip(final_interval, low, high)
 
-def build_tweet_media(media):
+def build_tweet_media(media: twikit.tweet.MEDIA_TYPE):
     """
     Process media object and return structured media data
     """
-    if media["type"] == "video":
+    if isinstance(media, twikit.media.Video):
         # Filter variants to only include MP4 videos
         variants = [
-            variant for variant in media["video_info"]["variants"] 
+            variant for variant in media.video_info["variants"] 
             if variant["content_type"] == "video/mp4"
         ]
         
@@ -330,27 +306,27 @@ def build_tweet_media(media):
         
         generator = {
             "type": "video",
-            "poster": media["media_url_https"],
+            "poster": media.media_url,
             "size": {
-                "height": media["sizes"]["large"]["h"],
-                "width": media["sizes"]["large"]["w"],
+                "height": media.sizes["large"]["h"],
+                "width": media.sizes["large"]["w"],
             },
             "video": {
                 "bitrate": best_variant.get("bitrate"),
                 "url": best_variant["url"],
-                "duration_millis": media["video_info"].get("duration_millis"),
+                "duration_millis": media.video_info.get("duration_millis"),
             }
         }
         
         return generator
         
-    elif media["type"] == "photo":
+    elif isinstance(media, twikit.media.Photo):
         generator = {
             "type": "photo",
-            "url": media["media_url_https"],
+            "url": media.media_url,
             "size": {
-                "height": media["sizes"]["large"]["h"],
-                "width": media["sizes"]["large"]["w"],
+                "height": media.sizes["large"]["h"],
+                "width": media.sizes["large"]["w"],
             }
         }
         return generator
@@ -358,14 +334,14 @@ def build_tweet_media(media):
     else:  # animated_gif
         return {
             "type": "animated_gif",
-            "poster": media["media_url_https"],
+            "poster": media.media_url,
             "size": {
-                "height": media["sizes"]["large"]["h"],
-                "width": media["sizes"]["large"]["w"],
+                "height": media.sizes["large"]["h"],
+                "width": media.sizes["large"]["w"],
             },
             "video": {
-                "bitrate": media["video_info"]["variants"][0].get("bitrate"),
-                "url": media["video_info"]["variants"][0]["url"],
+                "bitrate": media.video_info["variants"][0].get("bitrate"),
+                "url": media.video_info["variants"][0]["url"],
                 "duration_millis": 6000,
             }
         }
@@ -386,7 +362,72 @@ def build_tweet_text(tweet: Tweet) -> str:
 
     return f"_*@{tweet.user.screen_name} {'✓' if tweet.user.is_blue_verified else ''}:*_\n\n" + tweet_text
 
+client = Client('en-US',
+    user_agent=os.getenv("X_USER_AGENT", "Mozilla/5.0 (Linux; Android 16; SM-N960U) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.7151.90 Mobile Safari/537.36"),
+    proxy=WARP_PROXY_URL
+)
+
+async def login_client():
+    print("Logging in to X...", dict(
+        X_USERNAME=X_USERNAME,
+        X_EMAIL=X_EMAIL,
+        X_PASSWORD=X_PASSWORD,
+        X_USER_AGENT=os.getenv("X_USER_AGENT")
+    ))
+    await client.login(
+        auth_info_1=X_USERNAME ,
+        auth_info_2=X_EMAIL,
+        password=X_PASSWORD,
+    )
+
+    client.save_cookies(DATA_DIR + 'cookies.json')
+
+async def attempt_cached_login():
+    if X_COOKIES is not None:
+        cookies = json.loads(base64.b64decode(os.getenv("X_COOKIES", "{}")).decode())
+        client.set_cookies(cookies)
+        print("Successfully loaded cookies from environment variable.")
+    else:
+        try:
+            with open(DATA_DIR + 'cookies.json', 'r') as f:
+                cookies = json.load(f)
+                client.set_cookies(cookies)
+                print("Successfully loaded cookies.")
+                print("X_COOKIES=" + base64.b64encode(json.dumps(cookies).encode()).decode())
+        except FileNotFoundError:
+            try:
+                await login_client()
+                print("Successfully logged in and saved cookies.")
+            except twikit.TwitterException as e:
+                x_auth_errors._overwrite_and_save({
+                    "error": True,
+                    "message": str(e),
+                    "args": e.args,
+                    "X_COOKIES": X_COOKIES,
+                    "X_USERNAME": X_USERNAME,
+                    "X_EMAIL": X_EMAIL,
+                    "X_PASSWORD": X_PASSWORD,
+                    "X_FORCE_PUSH_AUTH": X_FORCE_PUSH_AUTH
+                })
+                raise e
+
 async def main():
+    x_auth_errors._overwrite_and_save({})
+    
+    if x_auth_errors.data.get("error"):
+        if X_COOKIES and X_COOKIES == x_auth_errors.data.get("X_COOKIES"):
+            raise Exception('X threw an error last time it was run, remove or change X_COOKIES and restart service.')
+        elif os.path.exists(DATA_DIR + 'cookies.json'):
+            os.remove(DATA_DIR + 'cookies.json')
+            raise Exception('X threw an error last time it was run, deleting saved cookies...')
+        elif (X_USERNAME == x_auth_errors.data.get("X_USERNAME")) and (X_PASSWORD == x_auth_errors.data.get("X_PASSWORD")) and (X_EMAIL == x_auth_errors.data.get("X_EMAIL")):
+            if X_FORCE_PUSH_AUTH == x_auth_errors.data.get("X_FORCE_PUSH_AUTH"):
+                raise Exception('X threw an error last time it was run with these USERNAME+EMAIL+PASSWORD credentials, try setting X_COOKIES or sign in manually once and change the value of X_FORCE_PUSH_AUTH (to anything else) to remove this flag...')
+            else:
+                print("X_FORCE_PUSH_AUTH triggered, removing auth error and continuing application...")
+                x_auth_errors.data["X_FORCE_PUSH_AUTH"] = X_FORCE_PUSH_AUTH
+                x_auth_errors.save_to_file()
+    
     await attempt_cached_login()
 
     user_handles = [handle for handle in os.getenv("X_HANDLES_TO_WATCH", "DropSiteNews").split(",") if handle.strip()]
@@ -398,7 +439,7 @@ async def main():
                 try:
                     user = await client.get_user_by_screen_name(user_handle)
 
-                    tweets = list(reversed(await user.get_tweets("Tweets", count=10)))
+                    tweets = list(reversed(await user.get_tweets("Tweets", count=40)))
 
                     print("Fetched tweets for user:", user.screen_name, "Total:", len(tweets))
 
@@ -417,9 +458,32 @@ async def main():
                     sleep_time = round(generate_time_interval(3, 19), 2)
                     print(f"Sleeping for {sleep_time} seconds to avoid rate limiting...")
                     await asyncio.sleep(sleep_time) # Sleep to avoid rate limiting
-                
+                except twikit.errors.Unauthorized as e:
+                    x_auth_errors._overwrite_and_save({
+                        "error": True,
+                        "message": str(e),
+                        "args": e.args,
+                        "X_COOKIES": X_COOKIES,
+                        "X_USERNAME": X_USERNAME,
+                        "X_EMAIL": X_EMAIL,
+                        "X_PASSWORD": X_PASSWORD,
+                        "X_FORCE_PUSH_AUTH": X_FORCE_PUSH_AUTH
+                    })
+                    raise e
+                except twikit.errors.TwitterException as e:
+                    x_auth_errors._overwrite_and_save({
+                        "error": True,
+                        "message": str(e),
+                        "args": e.args,
+                        "X_COOKIES": X_COOKIES,
+                        "X_USERNAME": X_USERNAME,
+                        "X_EMAIL": X_EMAIL,
+                        "X_PASSWORD": X_PASSWORD,
+                        "X_FORCE_PUSH_AUTH": X_FORCE_PUSH_AUTH
+                    })
+                    raise e
                 except Exception as e:
-                    print(f"Error fetching tweets for user {user_handle}: {e}")
+                    print(f"Non-twikit error thrown while fetching tweets for user {user_handle}: {e}")
                     traceback.print_exc()
                     continue
 
