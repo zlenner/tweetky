@@ -7,9 +7,11 @@ services:
     container_name: tweeto-whatsapp-channel
     depends_on:
       - whatsapp
+      - warproxy
     environment:
       - WHATSAPP_API_URL=http://whatsapp:3000
       - WHATSAPP_BASIC_AUTH=admin:admin
+      - WARP_PROXY_URL=socks5://admin:admin@warproxy:8008
       - PYTHONUNBUFFERED=1
     volumes:
       - tweeto-whatsapp-channel-data:/app/data
@@ -28,10 +30,22 @@ services:
       - rest
       - --basic-auth=admin:admin
       - --port=3000
-      - --debug=true
       - --os=Chrome
       - --account-validation=false
+  warproxy:
+    container_name: docker-warproxy
+    image: ghcr.io/105pm/docker-warproxy:latest
+    restart: always
+    volumes:
+      - warp-config:/config
+    ports:
+      - 1356:${PROXY_PORT:-8008}
+    environment:
+      - PROXY_USER=admin
+      - PROXY_PASS=admin
+      - WGCF_LICENSE_KEY=${WGCF_LICENSE_KEY}
 
 volumes:
   whatsapp-data:
   tweeto-whatsapp-channel-data:
+  warp-config:

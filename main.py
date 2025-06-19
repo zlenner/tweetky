@@ -15,6 +15,9 @@ import requests
 
 load_dotenv()
 
+print("ENV variables:")
+print(list(os.environ.items()))
+
 CHANNEL_ID=os.getenv("CHANNEL_ID", "")
 X_USERNAME=os.getenv("X_USERNAME", "")
 X_EMAIL=os.getenv("X_EMAIL", "")
@@ -38,7 +41,68 @@ else:
     for file in os.listdir(DATA_DIR):
         print("->", file)
 
-print("Verifying WhatsApp is logged in...", f'{WHATSAPP_URL}/app/login')
+print("Verifying WARP is working...")
+
+WARP_PROXY_URL = os.getenv("WARP_PROXY_URL")
+
+assert WARP_PROXY_URL, "WARP_PROXY_URL env variable must be defined."
+
+response = requests.get('http://ifconfig.me/')
+print(f"Your IP address: {response.text.strip()}")
+
+while True:
+    try:
+        response = requests.get('http://ifconfig.me/', proxies={'http': WARP_PROXY_URL, 'https': WARP_PROXY_URL})
+        print(f"Your IP through proxy: {response.text.strip()}")
+        break
+    except requests.exceptions.ConnectionError as e:
+        if "[Errno 111] Connection refused" in str(e):
+            print("WARP Proxy not yet started...")
+            time.sleep(2)
+            continue
+        else:
+            raise e
+
+client = Client('en-US',
+    user_agent=os.getenv("X_USER_AGENT", "Mozilla/5.0 (Linux; Android 16; SM-N960U) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.7151.90 Mobile Safari/537.36"),
+    proxy=WARP_PROXY_URL
+)
+
+async def login_client():
+    print("Logging in to X...", dict(
+        X_USERNAME=X_USERNAME,
+        X_EMAIL=X_EMAIL,
+        X_PASSWORD=X_PASSWORD,
+        X_USER_AGENT=os.getenv("X_USER_AGENT")
+    ))
+    await client.login(
+        auth_info_1=X_USERNAME ,
+        auth_info_2=X_EMAIL,
+        password=X_PASSWORD,
+    )
+
+    client.save_cookies(DATA_DIR + 'cookies.json')
+
+async def attempt_cached_login():
+    if X_COOKIES is not None:
+        cookies = json.loads(base64.b64decode(os.getenv("X_COOKIES", "{}")).decode())
+        client.set_cookies(cookies)
+        print("Successfully loaded cookies from environment variable.")
+    else:
+        try:
+            with open(DATA_DIR + 'cookies.json', 'r') as f:
+                cookies = json.load(f)
+                client.set_cookies(cookies)
+                print("Successfully loaded cookies.")
+                print("X_COOKIES=" + base64.b64encode(json.dumps(cookies).encode()).decode())
+        except FileNotFoundError:
+            await login_client()
+            print("Successfully logged in and saved cookies.")
+
+asyncio.run(attempt_cached_login())
+
+
+print("Verifying WhatsApp is logged in...", '/app/login')
 while True:
     try:
         response = requests.get(f'{WHATSAPP_URL}/app/login', headers=WHATSAPP_HEADERS)
@@ -204,40 +268,6 @@ class SentTweets(PersistentSet):
 
 sent_tweets = SentTweets()
 
-async def login_client():
-    print("Logging in to X...", dict(
-        X_USERNAME=X_USERNAME,
-        X_EMAIL=X_EMAIL,
-        X_PASSWORD=X_PASSWORD,
-        X_USER_AGENT=os.getenv("X_USER_AGENT")
-    ))
-    await client.login(
-        auth_info_1=X_USERNAME ,
-        auth_info_2=X_EMAIL,
-        password=X_PASSWORD,
-    )
-
-    client.save_cookies(DATA_DIR + 'cookies.json')
-
-# Initialize client
-client = Client('en-US', user_agent=os.getenv("X_USER_AGENT", "Mozilla/5.0 (platform; rv:geckoversion) Gecko/geckotrail Firefox/firefoxversion"))
-
-async def attempt_cached_login():
-    if X_COOKIES is not None:
-        cookies = json.loads(base64.b64decode(os.getenv("X_COOKIES", "{}")).decode())
-        client.set_cookies(cookies)
-        print("Successfully loaded cookies from environment variable.")
-    else:
-        try:
-            with open(DATA_DIR + 'cookies.json', 'r') as f:
-                cookies = json.load(f)
-                client.set_cookies(cookies)
-                print("Successfully loaded cookies.")
-                print("X_COOKIES=" + base64.b64encode(json.dumps(cookies).encode()).decode())
-        except FileNotFoundError:
-            await login_client()
-            print("Successfully logged in and saved cookies.")
-
 import numpy as np
 
 def generate_time_interval(low: float, high: float):
@@ -346,7 +376,7 @@ def build_tweet_text(tweet: Tweet) -> str:
     tweet_text: str = tweet.full_text
     if tweet.media:
         for media in tweet.media:
-            tweet_text = tweet_text.replace(media['url'], "")
+            tweet_text = tweet_text.replace(media.url, "")
 
     tweet_text = tweet_text.strip()
     tweet_text += "\n\n" + tweet_url
