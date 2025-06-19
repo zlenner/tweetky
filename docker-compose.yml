@@ -19,7 +19,7 @@ services:
     command: python main.py
 
   whatsapp:
-    image: aldinokemal2104/go-whatsapp-web-multidevice
+    image: zlenner/go-whatsapp-web-multidevice-ipv6:latest
     container_name: whatsapp
     restart: always
     ports:
@@ -34,7 +34,7 @@ services:
       - --account-validation=false
   warproxy:
     container_name: docker-warproxy
-    image: ghcr.io/105pm/docker-warproxy:latest
+    image: zlenner/docker-warproxy-ipv6:latest
     restart: always
     volumes:
       - warp-config:/config
