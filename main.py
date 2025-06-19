@@ -397,24 +397,30 @@ def intercept_twitter_flows():
             
             return X_EMAIL
         elif "code sent":
-            matching_logs = []
-            while len(matching_logs) == 0:
-                response = requests.get("https://api.improvmx.com/v3/domains/obaid.xyz/logs", headers={
-                    "Authorization": "Basic api:sk_6530c960e0a94dd9b3b3a47a26535781"
-                })
-                logs = response.json()
-                matching_logs = [log for log in logs['logs'] if log['created'] > time_of_call and 'Your X confirmation code is' in log['subject']]
-                print("No verification code email found...")
-                time.sleep(2)
-            
-            match = re.search(r'(?<=Your X confirmation code is )[a-z0-9]+', matching_logs[0]["subject"])
-            verification_code = match.group() if match else None
+            IMPROV_MX_API_KEY = os.getenv("IMPROVMX_APIKEY", None)
+            if IMPROV_MX_API_KEY is not None:
+                print("Fetching verification code from ImprovMX logs...")
+                matching_logs = []
+                while len(matching_logs) == 0:
+                    response = requests.get("https://api.improvmx.com/v3/domains/obaid.xyz/logs", headers={
+                        "Authorization": f"Basic api:{IMPROV_MX_API_KEY}"
+                    })
+                    logs = response.json()
+                    matching_logs = [log for log in logs['logs'] if log['created'] > time_of_call and 'Your X confirmation code is' in log['subject']]
+                    print("No verification code email found...")
+                    time.sleep(2)
+                
+                match = re.search(r'(?<=Your X confirmation code is )[a-z0-9]+', matching_logs[0]["subject"])
+                verification_code = match.group() if match else None
 
-            sleep_time = round(generate_time_interval(2, 6), 2)
-            print(f"Naturally sleeping for {sleep_time}...")
-            time.sleep(sleep_time)
+                sleep_time = round(generate_time_interval(2, 6), 2)
+                print(f"Naturally sleeping for {sleep_time}...")
+                time.sleep(sleep_time)
 
-            return verification_code
+                return verification_code
+            else:
+                print("No ImprovMX API Key provided, exiting application.")
+                raise twikit.errors.Unauthorized("Code requested... no API key provided to pull from ImprovMX automatically.")
         else:
             print("Unknown input requested...")
             _input(prompt)
