@@ -17,6 +17,7 @@ import twikit
 import twikit.media
 import builtins
 from contextlib import contextmanager
+import random
 
 load_dotenv()
 
@@ -479,10 +480,14 @@ async def attempt_cached_login():
                 })
                 raise e
 
+def pull_straw(probability: float) -> bool:
+    if not 0.0 <= probability <= 1.0:
+        raise ValueError("Probability must be between 0 and 1.")
+    
+    return random.random() < probability
+
 
 async def main():
-    x_auth_errors._overwrite_and_save({})
-    
     if x_auth_errors.data.get("error"):
         if X_COOKIES and X_COOKIES == x_auth_errors.data.get("X_COOKIES"):
             raise Exception('X threw an error last time it was run, remove or change X_COOKIES and restart service.')
@@ -507,6 +512,15 @@ async def main():
 
     try:
         while True:
+            fetch_timeline_function = lambda: client.get_timeline(count=20)
+
+            while pull_straw(0.3):
+                print("Straw pulled true, fetching home timeline...")
+                with intercept_twitter_flows():
+                    results = await fetch_timeline_function()
+                    print(f"Fetched {len(results)} tweets...")
+                    fetch_timeline_function = results.next
+
             all_users_new_tweets = []
             for user_handle in user_handles:
                 try:
