@@ -32,7 +32,10 @@ For the non-technically inclined, these details are stored only wherever you pas
 | `X_EMAIL` | ✅ **Yes** | Your Twitter/X email address | `your.email@example.com` |
 | `X_PASSWORD` | ✅ **Yes** | Your Twitter/X password | `your_secure_password` |
 | `X_COOKIES` | ✅ **Yes** | Base64 encoded Twitter/X session cookies for persistent login | `eyJjb29raWVzIjogWy4uLl19...` |
-| `X_HANDLES_TO_WATCH` | ⚠️ **Optional** | Single handle or a comma-separated string of X handles to watch and pull tweets from. | `DropSiteNews,BBCNews` OR just `DropSiteNews` |
+| `X_FORCE_PUSH_AUTH` | **Optional** | Can be set to anything, used to force app to retry login without making any changes to credentials. | `1` |
+| `X_HANDLES_TO_WATCH` | **Optional** | Single handle or a comma-separated string of X handles to watch and pull tweets from. | `DropSiteNews,BBCNews` OR just `DropSiteNews` |
+| `IMPROVMX_APIKEY` | **Optional** | ImprovMX API Key, used if you have an automated email set up that will let the app automatically enter 2FA verification codes. | `sk_321...` |
+
 
 Either one of (`X_USERNAME`, `X_EMAIL`, and `X_PASSWORD`) OR `X_COOKIES` is required.
 
@@ -53,7 +56,8 @@ The channel ID can be found from the View Contacts API, also accessable from our
 ### Browser Configuration
 | Variable | Required | Description | Example |
 |----------|----------|-------------|---------|
-| `X_USER_AGENT` | ⚠️ **Optional** | Custom user agent string for Twitter/X requests. Best to copy-paste your computer's. | `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36` |
+| `X_USER_AGENT` | **Optional** | Custom user agent string for Twitter/X requests. Best to copy-paste your computer's. | `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36` |
+| `WGCF_LICENSE_KEY` | **Optional** | WARP License Key, if you don't want to auto-register a limited account. | `7mx4k2pQ-V84J1NLX-a9WD7r02` |
 
 ## HOW TO GET STARTED.
 
