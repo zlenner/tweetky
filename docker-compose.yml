@@ -44,6 +44,7 @@ services:
       - PROXY_USER=admin
       - PROXY_PASS=admin
       - WGCF_LICENSE_KEY=${WGCF_LICENSE_KEY}
+      - WGCF_DEVICE_NAME=${WGCF_DEVICE_NAME:-IntelOSX}
 
 volumes:
   whatsapp-data:
