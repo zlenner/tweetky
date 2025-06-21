@@ -486,6 +486,7 @@ def pull_straw(probability: float) -> bool:
     
     return random.random() < probability
 
+tweets_fetched_per_day = PersistentJsonData("tweets_fetched_per_day.json", {})
 
 async def main():
     if x_auth_errors.data.get("error"):
@@ -512,13 +513,26 @@ async def main():
 
     try:
         while True:
+            latest_day_start = 0 if not len(tweets_fetched_per_day.data.keys()) else max(tweets_fetched_per_day.data.keys())
+            now_utc = datetime.datetime.now(datetime.timezone.utc)
+
+            if int((now_utc - datetime.timedelta(days=1)).timestamp()) > int(latest_day_start):
+                tweets_fetched_per_day.data[int(now_utc.timestamp())] = 0
+                tweets_fetched_per_day.save_to_file()
+            
+            counter_key = max(tweets_fetched_per_day.data.keys())
+
             fetch_timeline_function = lambda: client.get_timeline(count=20)
 
             while pull_straw(0.3):
                 print("Straw pulled true, fetching home timeline...")
                 with intercept_twitter_flows():
                     results = await fetch_timeline_function()
+                    
+                    tweets_fetched_per_day.data[counter_key] += len(results)
+                    tweets_fetched_per_day.save_to_file()
                     print(f"Fetched {len(results)} tweets...")
+                    
                     fetch_timeline_function = results.next
 
             all_users_new_tweets = []
@@ -530,6 +544,8 @@ async def main():
                     with intercept_twitter_flows():
                         tweets = list(reversed(await user.get_tweets("Tweets", count=40)))
 
+                    tweets_fetched_per_day.data[counter_key] += len(tweets)
+                    tweets_fetched_per_day.save_to_file()
                     print("Fetched tweets for user:", user.screen_name, "Total:", len(tweets))
 
                     new_tweets = [tweet for tweet in tweets if not sent_tweets.exists(tweet) and not sent_tweets.errored.exists(tweet)]
