@@ -518,13 +518,12 @@ async def main():
             now_utc = datetime.datetime.now(datetime.timezone.utc)
 
             if int((now_utc - datetime.timedelta(days=1)).timestamp()) > int(latest_day_start):
-                print(f"Starting new day, last 24 hours saw {tweets_fetched_per_day.data[latest_day_start]} tweets fetched.")
                 tweets_fetched_per_day.data[int(now_utc.timestamp())] = 0
                 tweets_fetched_per_day.save_to_file()
             
             counter_key = max(map(int, tweets_fetched_per_day.data.keys()))
-            time_since = now_utc - datetime.datetime.fromtimestamp(counter_key)
-            print(f"Fetched {tweets_fetched_per_day.data[counter_key]} requests since ${timeago.format(time_since)}.")
+            time_since = now_utc - datetime.datetime.fromtimestamp(counter_key, datetime.timezone.utc)
+            print(f"Fetched {tweets_fetched_per_day.data[counter_key]} requests since {timeago.format(time_since)}.")
 
             fetch_timeline_function = lambda: client.get_timeline(count=20)
 
