@@ -521,9 +521,8 @@ async def main():
                 tweets_fetched_per_day.data[int(now_utc.timestamp())] = 0
                 tweets_fetched_per_day.save_to_file()
             
-            counter_key = max(map(int, tweets_fetched_per_day.data.keys()))
-            print(counter_key, tweets_fetched_per_day.data.keys())
-            time_since = now_utc - datetime.datetime.fromtimestamp(counter_key, datetime.timezone.utc)
+            counter_key = str(max(map(int, tweets_fetched_per_day.data.keys())))
+            time_since = now_utc - datetime.datetime.fromtimestamp(int(counter_key), datetime.timezone.utc)
             print(f"Fetched {tweets_fetched_per_day.data[counter_key]} requests since {timeago.format(time_since)}.")
 
             fetch_timeline_function = lambda: client.get_timeline(count=20)
