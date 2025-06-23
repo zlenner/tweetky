@@ -7,6 +7,7 @@ import os
 import re
 import time
 import traceback
+import timeago
 from twikit import Client, Tweet
 import aiohttp
 from dotenv import load_dotenv
@@ -513,14 +514,17 @@ async def main():
 
     try:
         while True:
-            latest_day_start = 0 if not len(tweets_fetched_per_day.data.keys()) else max(tweets_fetched_per_day.data.keys())
+            latest_day_start = 0 if not len(tweets_fetched_per_day.data.keys()) else max(map(int, tweets_fetched_per_day.data.keys()))
             now_utc = datetime.datetime.now(datetime.timezone.utc)
 
             if int((now_utc - datetime.timedelta(days=1)).timestamp()) > int(latest_day_start):
+                print(f"Starting new day, last 24 hours saw {tweets_fetched_per_day.data[latest_day_start]} tweets fetched.")
                 tweets_fetched_per_day.data[int(now_utc.timestamp())] = 0
                 tweets_fetched_per_day.save_to_file()
             
-            counter_key = max(tweets_fetched_per_day.data.keys())
+            counter_key = max(map(int, tweets_fetched_per_day.data.keys()))
+            time_since = now_utc - datetime.datetime.fromtimestamp(counter_key)
+            print(f"Fetched {tweets_fetched_per_day.data[counter_key]} requests since ${timeago.format(time_since)}.")
 
             fetch_timeline_function = lambda: client.get_timeline(count=20)
 
